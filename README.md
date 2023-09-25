@@ -40,3 +40,6 @@ To get an idea of how DataChat works, take a look at the following screenshots:
 ![image](https://github.com/Soundoffear/DataChat/assets/33915160/582725a2-bbd8-4a7e-9b57-2a5d05f462a0)
 
 ![image](https://github.com/Soundoffear/DataChat/assets/33915160/24196fee-3108-46b0-a047-d5060c0bccbc)
+
+# License
+Apache 2.0
