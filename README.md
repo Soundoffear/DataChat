@@ -9,16 +9,24 @@ This application for quickly getting interpretation of your data using LLMs (Cur
 
 # Installation
 ### Clone this repository
-('git clone https://github.com/yourusername/DataChat.git')
+```bash
+git clone https://github.com/yourusername/DataChat.git')
+```
 
 ### Navigate to the project directory
+```bash
 cd DataChat
+```
 
 ### Install dependencies
+```bash
 pip install -r requirements.txt
+```
 
 ### Run the application
+```bash
 python3 app.py
+```
 
 The server will start at 192.168.1.3:5000
 
