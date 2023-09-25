@@ -1,5 +1,6 @@
 # DataChat
 This application for quickly getting interpretation of your data using LLMs (Currently OpenAI API - functions). The goal of the project is to expand it to all LLM (Closed and OpenSource) so people really only PLUG-AND-PLAY their databases.
+<p>The app currently have synthetic database inside the folder instance - those are <b>NOT</b> real values or data, but they were easy to create for me.</p>
 
 # Features
 <p>📊 D3JS Integration: Advanced data visualization.</p>
