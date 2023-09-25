@@ -1,0 +1,548 @@
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Chat Application</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.2.0/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <style>
+        
+    </style>
+</head>
+
+<body>
+    <h1>Welcome to the DataChat App!</h1>
+    <div class='chat-container'>
+        <div id="chat-window">
+            <!-- chat message will be displayed here -->
+        </div>
+    </div>
+    <div class="centered-div">
+        <form id="chat-form" class="chat-form">
+            <input type="text" id="user_input" name='user_input' class='chat-input' placeholder="Enter Message">
+            <button type="submit" class="chat-button">Send</button>
+        </form>
+    </div>
+</body>
+<script>
+    
+    var socket = io();
+
+    function displayMessage(message, person, type="normal", svg_name="", data=null, plot_type='line', comment) {
+        var chatWindow = document.getElementById('chat-window');
+        var outerDiv = document.createElement('div');
+        outerDiv.className = "outer-div";
+        var divContainer = document.createElement('div');
+        divContainer.className = "div-container";
+        outerDiv.appendChild(divContainer);
+        var mainElement = document.createElement('div');
+        mainElement.className = "main-div";
+        divContainer.appendChild(mainElement);
+        var personElement = document.createElement('div');
+        console.log(person);
+        if (person === "User") {
+            personElement.innerHTML = "Matt D";
+        } else if (person === "AI") {
+            personElement.innerHTML = "AI";
+        }
+        var messageElement = document.createElement('div');
+        function generateGUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0,
+                    v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+        messageElement.id = generateGUID();
+        if (type === "code") {
+            let xaxis = message[0]
+            let yaxis = message[1]
+            let svgElement = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                svgElement.setAttribute("width", "960");
+                svgElement.setAttribute("height", "640");
+                svgElement.setAttribute("id", svg_name)
+            messageElement.appendChild(svgElement);
+
+            let saveButton = document.createElement("button");
+            saveButton.innerHTML = "Save as PNG";
+            saveButton.id = "saveButton";
+            saveButton.className = "save-button"
+            saveButton.addEventListener("click", function() {
+                
+
+                const svgContent = svgElement.querySelector("g");
+
+                const svg = document.getElementById(svg_name);
+                const serializer = new XMLSerializer();
+                const svgStr = serializer.serializeToString(svg);
+                
+                const image = new Image();
+                image.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = svg.width.baseVal.value; 
+                    canvas.height = svg.height.baseVal.value;
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.drawImage(image, 0, 0);
+                    
+                    canvas.toBlob(function(blob) {
+                    saveAs(blob, 'chart.png');
+                    });
+
+                }
+
+                image.src = "data:image/svg+xml;base64," + btoa(svgStr);
+
+            });
+
+            messageElement.appendChild(saveButton);
+
+            var plotType = plot_type;
+            if (plotType === "bar") {
+                showBarPlot(data, xaxis, yaxis, svgElement);
+            } else if (plotType === "line") {
+                showLinePlot(data, xaxis, yaxis, svgElement);
+            } else if (plotType === "scatter") {
+                showScatterPlot(data, xaxis, yaxis, svgElement);
+            }
+
+        } else if (type === "table") {            
+            messageElement.innerHTML = message;
+            // Adding button to download table as csv
+
+            let commentDiv = document.createElement("div");
+            commentDiv.style.marginTop = "10px";
+            commentDiv.innerHTML = comment;
+            messageElement.appendChild(commentDiv);
+
+            // Add horizontal line to separate buttons from table & comment
+
+            let hr = document.createElement("hr");
+            hr.style.marginTop = "10px";
+            hr.style.marginBottom = "10px";
+            messageElement.appendChild(hr);
+
+            let downloadTableButton = document.createElement("button");
+            downloadTableButton.innerHTML = "Download CSV";
+            downloadTableButton.id = "downloadTableButton";
+            downloadTableButton.className = "save-button"
+            downloadTableButton.addEventListener("click", function() {
+                let table = document.getElementById(messageElement.id).getElementsByTagName('table')[0];
+                let csv = tableToCSV(table);
+                downloadCSV(csv);
+            });
+
+            messageElement.appendChild(downloadTableButton);
+
+            // Adding button to save as png
+            let saveTableButton = document.createElement("button");
+            saveTableButton.innerHTML = "Save as PNG";
+            saveTableButton.id = "saveTableButton";
+            saveTableButton.className = "save-button"
+            saveTableButton.addEventListener("click", function() {
+                let table = document.getElementById(messageElement.id).getElementsByTagName('table')[0];
+
+                let rows = table.querySelectorAll("tr");
+                rows.forEach(function(row) {
+                    row.style.backgroundColor = "white";
+                });
+
+                // Force reflow/repaint
+                table.offsetHeight;
+
+                html2canvas(table).then(canvas => {
+                    let imgData = canvas.toDataURL("image/png");
+                    let link = document.createElement('a');
+                    link.href = imgData;
+                    link.download = 'table.png';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            });
+
+            messageElement.appendChild(saveTableButton);
+
+        } else {
+            var str = message;
+            // replace \n with <br>
+            str = str.replace(/\n/g, "<br>");
+            // replace - with bullet points
+            str = str.replace(/- /g, "<li>");
+            messageElement.innerHTML = str;
+        }
+        mainElement.appendChild(personElement);
+        mainElement.appendChild(messageElement);
+
+        if (person === "User") {
+            mainElement.classList.add('user-message');
+            outerDiv.classList.add('contains-user-message')
+            personElement.classList.add('user');
+        } else if (person === "AI") {
+            mainElement.classList.add('ai-message');
+            outerDiv.classList.add('contains-ai-message')
+            personElement.classList.add('ai');
+        }
+
+        chatWindow.appendChild(outerDiv);
+    }
+
+    
+
+    function tableToCSV(table) {
+        let csv = [];
+        for(let i = 0; i < table.rows.length; i++) {
+            let row = [], cols = table.rows[i].querySelectorAll("td, th");
+            for(let j = 0; j < cols.length; j++) {
+                row.push(cols[j].innerText);
+            }
+            csv.push(row.join(","));
+        }
+
+        return csv.join("\n");
+    }
+
+    function downloadCSV(csv) {
+        let blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+        let link = document.createElement("a");
+        let url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "table.csv")
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function retrieveMessage() {
+        fetch('/messages')
+            .then(function(response) {
+                return response.json();
+            })
+            .then(function(data) {
+                var messages = data.content;
+                var person = data.person;
+                var type = data.type;
+                var svg_name =data.svg;
+                var data_sql = data.data_sql;
+                var ptype = data.plot_type;
+                var commentD = data.text_analysis;
+                for (var i = 0; i < messages.length; i++) {
+                    if (type[i] === "code") {
+                        let data_rec = data_sql[i];
+                        let plt_type = ptype[i];
+                        displayMessage(messages[i], person[i], "code", svg_name[i], data=data_rec, plot_type=plt_type);
+                    } else if (type[i] === "table") {
+                        displayMessage(messages[i], person[i], "table", null, null, null, commentD[i]);
+                    } else if (type[i] === "analysis") {
+                        displayMessage(messages[i], person[i], "analysis");
+                    } else {
+                        displayMessage(messages[i], person[i], "normal");
+                    }
+                }
+            });
+    }
+
+    document.getElementById('chat-form').addEventListener('submit', function(event) {
+        event.preventDefault();
+        var user_input = document.getElementById('user_input').value;
+        socket.emit('user_input', {content: user_input});
+        document.getElementById('user_input').value = '';
+        displayMessage(user_input, "User");
+    });
+
+    socket.on('response', function(data) {
+        var response = data.content;
+        var user = data.person;
+        var type = data.type;
+        var svg_name = data.svg_name;
+        if (type === "code") {
+            var data_rec = data.data_plot;
+            var plot_type = data.plot_type;
+        }
+        if (type === "table") {
+            var comment = data.comment;
+        }
+
+        if (type === "code") {
+            
+            try {
+                displayMessage(response, "AI", "code", svg_name, data_rec, plot_type);
+            } catch (error) {
+                console.error("Error in code: " + error);
+            }
+
+        } else if (type === "table") {
+            displayMessage(response, "AI", "table", svg_name, null, null, comment);
+        } else if (type === "regular") {
+            displayMessage(response, "AI", "normal");
+        }
+    });
+    
+    retrieveMessage();
+
+    function showLinePlot(data, xaxis, yaxis, svgElement) {
+        
+        data = JSON.parse(data);
+        console.log(data);
+        var margin = {top: 20, right: 20, bottom: 45, left: 75}
+        var width = +svgElement.getAttribute("width") - margin.left - margin.right;
+        var height = +svgElement.getAttribute("height") - margin.top - margin.bottom;
+
+        d3.select(svgElement).append("rect")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("fill", "#F6F3EB");
+
+        var svg = d3.select(svgElement).append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        var parseTime = d3.timeParse("%Y-%m-%d");
+
+        var color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        var dataByWell = d3.group(data, d => d.Well_ID);
+        
+        var y = d3.scaleLinear().rangeRound([height, 0])
+
+        var x;
+
+        if (xaxis == "FullTime" || xaxis == "Date") {
+            x = d3.scaleTime().rangeRound([0, width]);
+        } else {
+            x = d3.scaleLinear().rangeRound([0, width]);
+        }
+
+        var line = d3.line()
+        .x(function(d) { return x(d[xaxis] instanceof Date ? d[xaxis] : new Date(d[xaxis])); })
+        .y(function(d) { return y(d[yaxis]); });
+
+        x.domain(d3.extent(data, function(d) { return d[xaxis] instanceof Date ? d[xaxis] : new Date(d[xaxis]); }));
+        
+        if (yaxis == "Depth") {
+            y.domain([d3.max(data, function(d) { return d[yaxis] * 1.1; }), 0]);
+            x.domain([0, d3.max(data, function(d) { return d[xaxis] instanceof Date ? d[xaxis]*1.1 : new Date(d[xaxis]); })]);
+        } else {
+            y.domain([0, d3.max(data, function(d) { return d[yaxis] * 1.1; })]);
+        }
+
+        svg.append("g")
+            .attr("transform", "translate(0," + height + ")")
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .attr('font-size', "14px");
+
+        svg.append("g")
+            .call(d3.axisLeft(y))
+            .selectAll("text")
+            .attr('font-size', "14px");
+
+        for(const [wellId, wellData] of dataByWell.entries()) {
+            svg.append("path")
+                .datum(wellData)
+                .attr("fill", "none")
+                .attr("stroke", color(wellId))
+                .attr("stroke-linejoin", "round")
+                .attr("stroke-linecap", "round")
+                .attr("stroke-width", 2.5)
+                .attr("d", line);
+            console.log(wellId);
+            if (wellId === undefined) {
+                continue;
+            } else {
+                svg.append("text")
+                .attr("x", width - 50)
+                .attr("y", 20*wellId)
+                .attr("dy", "0.35em")
+                .style("fill", color(wellId))
+                .style("text-anchor", "end")
+                .text(`Well ${wellId}`);
+            }
+        }
+
+        svg.append("text")
+            .attr("x", (width/2))
+            .attr("y", 0 + (margin.top/10))
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .text(`${yaxis} vs ${xaxis}`);
+
+        svg.append("text")
+            .attr("transform", `translate(${width/2},${height + margin.bottom - 10})`)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .text(xaxis);
+
+        // add yaxis label
+        svg.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('transform', 'translate(-50,' + height/2 + ')rotate(-90)')
+            .attr('font-size', '16px')
+            .text(yaxis);
+
+    }
+
+    function showBarPlot(data, xaxis, yaxis, svgElement) {
+        
+        data = JSON.parse(data);
+        console.log(data)
+        console.log(xaxis, yaxis)
+
+        const wellIDs = [...new Set(data.map(d => d.Well_ID))];
+        console.log("WellIDs", wellIDs);
+        const xCategories = [...new Set(data.map(d => d[xaxis]))];
+        
+        console.log("CATS", xCategories, xaxis);
+
+        const maxVal = d3.max(data, d => d[yaxis]);
+
+        let scale = 1;
+        if (maxVal >= 1000000) {
+            scale = 1000000;
+        } else if (maxVal >= 1000) {
+            scale = 1000;
+        }
+
+        function formatNumber(num) {
+            if (scale === 1000000) {
+                return (num / 1000000).toFixed(1) + "M";
+            } else if (scale === 1000) {
+                return (num / 1000).toFixed(1) + "k";
+            } else {
+                return num;
+            }
+        }
+
+        var margin = {top: 20, right: 20, bottom: 45, left: 75}
+        var width = +svgElement.getAttribute("width") - margin.left - margin.right;
+        var height = +svgElement.getAttribute("height") - margin.top - margin.bottom;
+        
+        d3.select(svgElement).append("rect")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("fill", "#F6F3EB");
+
+        var svg = d3.select(svgElement).append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+        var x = d3.scaleBand()
+                .domain(xCategories)
+                .rangeRound([0, width])
+                .padding(0.1);
+        console.log("DOMAIN", x.domain())
+        var y = d3.scaleLinear()
+                .domain([0, d3.max(data, function(d) {return d[yaxis] * 1.1; })])
+                .rangeRound([height, 0]);
+
+        const colorScale = d3.scaleOrdinal()
+                .domain(wellIDs)  
+                .range(d3.schemeCategory10);
+        
+        wellIDs.forEach((id, i) => {
+
+
+            const wellData = data.filter(d => d.Well_ID === id);
+            console.log(x(id))
+            svg.append("g")
+                //.attr("transform", `translate(${x(id)}, 0)`)
+                .selectAll(".bar")
+                .data(wellData)
+                .join("rect")
+                .attr("class", "bar")
+                .attr("x", (d,j) => {
+                    
+                    return x(d[xaxis]) + (i * x.bandwidth() / wellIDs.length); 
+                  })
+                .attr("y", function(d) { return y(d[yaxis]); })
+                .attr("fill", () => colorScale(id))
+                .attr("stroke", "black")
+                .attr("stroke-width", 1)
+                .attr("width", x.bandwidth() / wellIDs.length)
+                .attr("height", function(d) { return height - y(d[yaxis]); });
+
+            svg.selectAll(`.label${i}`)
+                .data(wellData)
+                .join('text')
+                .attr("class", `label${i}`)
+                .attr("x", d => x(d[xaxis]) + (i * x.bandwidth() / wellIDs.length) + (x.bandwidth() / wellIDs.length / 2))
+                .attr("y", function(d) {return y(d[yaxis]) - 15;})
+                .attr("dy", ".75em")
+                .attr("text-anchor", "middle")
+                .text(d => d[yaxis].toFixed(2));
+
+            if (id === undefined) {
+                return;
+            } else {
+                svg.selectAll(`.label_well${i}`)
+                    .data(wellData)
+                    .join('text')
+                    .attr("class", `label_well${i}`)
+                    .attr("x", d => x(d[xaxis]) + (i * x.bandwidth() / wellIDs.length) + (x.bandwidth() / wellIDs.length / 2))
+                    .attr("y", height)
+                    .attr("dy", ".50em")
+                    .attr("dx", ".35em")
+                    .attr("text-anchor", "start")
+                    .attr("transform", d => `rotate(-90, ${x(d[xaxis]) + (i * x.bandwidth() / wellIDs.length) + (x.bandwidth() / wellIDs.length / 2)}, ${height})`)
+                    .text(`Well ${id}`)
+                    .style("font-size", "18px")
+                    .style("fill", "black")
+                    .style("font-weight", "bold");
+            }
+
+        })
+
+        svg.append("g")
+            .attr("transform", `translate(0, ${height})`)
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .attr('font-size', "14px");
+
+        svg.append("g")
+            .call(d3.axisLeft(y).tickFormat(formatNumber))
+            .selectAll("text")
+            .attr('font-size', "14px");
+
+        svg.append("text")
+            .attr("x", (width/2))
+            .attr("y", 0 + (margin.top/10))
+            .attr("text-anchor", "middle")
+            .attr("font-size", "18px")
+            .text(`${yaxis} vs ${xaxis}`);
+
+        svg.append("text")
+            .attr("transform", `translate(${width/2},${height + margin.bottom - 10})`)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "16px")
+            .text(xaxis);
+
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            var chatWindow = document.querySelector('#chat-window');
+            var outerDivs = chatWindow.querySelectorAll('.outer-div'); // Get all .outer-div elements
+            
+            outerDivs.forEach(function(outerDiv) {
+                var aiMessageExists = outerDiv.querySelector('.ai-message') !== null; // Prefix with '.'
+                var userMessageExists = outerDiv.querySelector('.user-message') !== null; // Prefix with '.'
+                
+                if (aiMessageExists) {
+                    outerDiv.classList.add('contains-ai-message');
+                }
+    
+                if (userMessageExists) {
+                    outerDiv.classList.add('contains-user-message');
+                }
+            });
+
+            const lastMessage = chatWindow.lastElementChild;
+            lastMessage.scrollIntoView();
+            lastMessage.scrollIntoView({ behavior: 'smooth' })
+
+        }, 100);
+    });
+
+
+</script>
+</html>
