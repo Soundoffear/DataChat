@@ -32,6 +32,8 @@ The server will start at 192.168.1.3:5000
 
 # Usage & Examples
 
+The app works very simply, you ask question and system will make requests to OpenAI API and return messages.
+
 To get an idea of how DataChat works, take a look at the following screenshots:
 ![image](https://github.com/Soundoffear/DataChat/assets/33915160/8125fc49-0721-4ce8-9c2d-fe3499186457)
 
