@@ -9,7 +9,7 @@ This application for quickly getting interpretation of your data using LLMs (Cur
 
 # Installation
 ### Clone this repository
-git clone https://github.com/yourusername/DataChat.git
+('git clone https://github.com/yourusername/DataChat.git')
 
 ### Navigate to the project directory
 cd DataChat
